@@ -1,0 +1,86 @@
+* MNIST IDX Parser
+The MNIST dataset is (or should be) publicly available at http://yann.lecun.com/exdb/mnist/, but often it's not, so we will be using this Kaggle alternative https://www.kaggle.com/datasets/hojjatk/mnist-dataset primarily. I will also provide ~cURL~ scripts for downloading the datasets from the originally intendended source.
+
+** 1 Getting the Dataset
+First, clone this repository to your local machine:
+#+begin_src bash
+  git clone https://github.com/diogobonofre/machine_learning
+#+end_src
+
+Then move to the directory and create the necessary structure:
+#+begin_src bash
+  cd machine_learning/mnist_idx_parser
+  mkdir -p ./data/mnist
+#+end_src
+
+And finally download the dataset of your preference:
+- For the original Yan LeCun's website:
+  #+begin_src bash
+    curl http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz --output ../data/mnist/train-images-idx3-ubyte.gz
+    curl http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz --output ../data/mnist/train-labels-idx1-ubyte.gz
+    curl http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz --output ../data/mnist/t10k-images-idx3-ubyte.gz
+    curl http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz --output ../data/mnist/t10k-labels-idx1-ubyte.gz
+  #+end_src
+- For the Kaggle alternative:
+  #+begin_src bash
+    curl -L -o ./data/mnist/mnist_dataset.zip https://www.kaggle.com/api/v1/datasets/download/hojjatk/mnist-dataset
+    unzip ./data/mnist/mnist_dataset.zip && rm ./data/mnist/mnist_dataset.zip
+
+    # remove unecessary directories
+    rm -rf ./data/mnist/t10k-images-idx3-ubyte
+    rm -rf ./data/mnist/t10k-labels-idx1-ubyte
+    rm -rf ./data/mnist/train-images-idx3-ubyte
+    rm -rf ./data/mnist/train-labels-idx1-ubyte
+  #+end_src
+  Note that, in this case, you will need to replicate the output of the LeCun's file structure.
+
+** Understanding Binary Files
+You probably already know that everything in a computer is binary data. From the programs you execute to the output they generate, everything is stored in binary format. The different formats we interact (.jpg, .wav, .gz, ...) are just human-understandable representations of these. We teach computers how to extract information that makes sense to us from specific sequences of binary digits. This is what makes computers useful for us.
+
+_Note_: I will not delve deep into the specificities of manipulating bytes in Python. If you want to become more familiar with the syntax used here, feel free to take your time and read the related references.
+
+If we analyze carefully our ~train-labels.idx1-ubyte~ file, we will see that it has a binary protocol in form of a header in its first bytes.
+#+begin_src bash
+  $ xxd train-labels.idx1-ubyte			     # the $ indicates the command-line prefix
+  00000000: 0000 0801 0000 ea60 0500 0401 0902 0103  .......`........
+  00000010: 0104 0305 0306 0107 0208 0609 0400 0901  ................
+  00000020: 0102 0403 0207 0308 0609 0005 0600 0706  ................
+  00000030: 0108 0709 0309 0805 0903 0300 0704 0908  ................
+  00000040: 0009 0401 0404 0600 0405 0601 0000 0107  ................
+#+end_src
+Consulting the IDX file format specification on https://www.fon.hum.uva.nl/praat/manual/IDX_file_format.html, it says that:
+
+- /"The magic number is four bytes long. The first 2 bytes are always 0."/
+
+  As you can see, our file starts with ~0000~.
+
+- /"The third byte codes the type of the data [...]"/
+
+  The third byte in our file corresponds to ~08~ which means we are dealing with unsigned bytes.
+
+- /"The fourth byte codes the number of dimensions of the vector/matrix: 1 for vectors, 2 for matrices..."/
+
+  Our fourth byte is ~01~ implying that our data is a vector (unidimensional matrix).
+
+- /"The sizes in each dimension are 4-byte integers (big-endian, like in most non-Intel processors)."/
+
+  It means we have a 4-byte integer for each of our dimensions. Because we're dealing with a vector, we have just one of these, the ~0000 ea60~.
+
+- /"The data is stored like in a C array, i.e. the index in the last dimension changes the fastest."/
+
+  This may be the most important part about the IDX format specification. A dataset of images like MNIST is composed of 2D matrices, it's mathematically expressed in the $i \times j$ format. Because of this, when we're reading the image pixel by pixel in our program, the $j$ (column index) is incremented 28 times before $i$ finally get incremented.
+
+  If it was a 3D matrix, we would have a expression like $i \times j \times k$, in which $k$ would change the fastest, then $j$, then $i$.
+
+  So what now? Well, with this in mind we know that our parser doesn't need to do any fancy works here in order to reconstruct the image. We can just read the total 784 bytes of the image straight from the file and if we chop them every 28 bytes, we'll have the original image.
+
+  Further Researches:
+    - Search about Row-Major Order and how multi-dimensional arrays are aligned in memory;
+    - Also search about optimizations for byte reading using Python generators with yield and chunk reading.
+
+** Implementing an MNIST IDX Label Parser
+
+* References
+- [[https://youtu.be/oSCVb4Ts-G4?si=8fZTQhB1fSTtoMTw][What's the REAL difference between binary files and text?]]
+- [[http://www.catb.org/~esr/writings/taoup/html/ch05s02.html#id2901882][The Art of Unix Programming - Data File Metaformats C5. Textuality]]
+- [[https://realpython.com/python-bytes/][Bytes Objects: Handling Binary Data in Python]]
