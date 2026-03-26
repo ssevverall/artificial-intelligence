@@ -1,8 +1,8 @@
 [project]
-name = "machine-learning"
+name = "artificial-intelligence"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = ""
+readme = "README.org"
 requires-python = ">=3.11"
 dependencies = [
     "matplotlib>=3.10.8",
